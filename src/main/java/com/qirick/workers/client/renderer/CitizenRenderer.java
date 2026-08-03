@@ -14,6 +14,9 @@ import net.minecraft.client.renderer.entity.layers.ElytraLayer;
 import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
 import net.minecraft.client.renderer.entity.layers.ItemInHandLayer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Renders a Citizen with the vanilla player model.
@@ -54,8 +57,28 @@ public class CitizenRenderer extends MobRenderer<CitizenEntity, PlayerModel<Citi
     @Override
     public void render(CitizenEntity entity, float entityYaw, float partialTicks, PoseStack poseStack,
                        MultiBufferSource buffer, int packedLight) {
-        this.model = entity.getGender().isSlim() ? this.slimModel : this.wideModel;
+        PlayerModel<CitizenEntity> activeModel = entity.getGender().isSlim() ? this.slimModel : this.wideModel;
+        this.model = activeModel;
+
+        // ItemInHandLayer draws the held item, but only the arm pose makes the citizen
+        // actually grip it instead of letting it float beside a straight arm.
+        boolean mainHandOnRight = entity.getMainArm() == HumanoidArm.RIGHT;
+        HumanoidModel.ArmPose mainPose = armPoseFor(entity.getItemInHand(InteractionHand.MAIN_HAND));
+        HumanoidModel.ArmPose offPose = armPoseFor(entity.getItemInHand(InteractionHand.OFF_HAND));
+        activeModel.rightArmPose = mainHandOnRight ? mainPose : offPose;
+        activeModel.leftArmPose = mainHandOnRight ? offPose : mainPose;
+        activeModel.crouching = entity.isCrouching();
+
         super.render(entity, entityYaw, partialTicks, poseStack, buffer, packedLight);
+    }
+
+    /**
+     * Anything held gets the plain carrying pose. The specialised poses - drawing a bow,
+     * raising a shield, holding a spyglass - depend on the citizen actually using those
+     * items, which it cannot do yet.
+     */
+    private static HumanoidModel.ArmPose armPoseFor(ItemStack stack) {
+        return stack.isEmpty() ? HumanoidModel.ArmPose.EMPTY : HumanoidModel.ArmPose.ITEM;
     }
 
     @Override

@@ -14,6 +14,16 @@ adds the entity everything else will be built on: the **Citizen**.
   - Movement only: wanders, looks at nearby players, idles, and floats instead of
     drowning. Full ground pathfinding. How a Citizen reacts to being hurt, to other
     mobs or to the world is deliberately left for later.
+  - 8-slot inventory, the same size a villager carries. Items the Citizen walks over
+    are picked up into it and persist across save/load. Walking to an item on purpose
+    is a later step.
+  - Whatever is in the main hand renders in the right hand with the player carrying
+    pose, so a pickaxe reads as a pickaxe. Nothing puts items into the hand yet; set
+    one to see it:
+
+    ```
+    /item replace entity @e[type=workers:citizen,limit=1] weapon.mainhand with minecraft:diamond_pickaxe
+    ```
   - Spawned with `workers:citizen_spawn_egg` (Spawn Eggs creative tab). No natural
     spawning yet.
 

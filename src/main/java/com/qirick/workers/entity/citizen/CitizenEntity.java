@@ -19,7 +19,10 @@ import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.npc.InventoryCarrier;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import org.jetbrains.annotations.Nullable;
@@ -31,18 +34,25 @@ import org.jetbrains.annotations.Nullable;
  * pathfinds like any other passive mob; the jobs, schedules and interactions
  * that the Citizen is eventually meant to carry come later.
  */
-public class CitizenEntity extends PathfinderMob {
+public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
 
     private static final EntityDataAccessor<Byte> DATA_GENDER =
             SynchedEntityData.defineId(CitizenEntity.class, EntityDataSerializers.BYTE);
 
     private static final String TAG_GENDER = "Gender";
 
+    /** Same size as a villager's inventory. */
+    private static final int INVENTORY_SIZE = 8;
+
     /** Matches the player's eye height so the citizen looks at things from where its eyes are. */
     private static final float EYE_HEIGHT = 1.62F;
 
+    private final SimpleContainer inventory = new SimpleContainer(INVENTORY_SIZE);
+
     public CitizenEntity(EntityType<? extends CitizenEntity> type, Level level) {
         super(type, level);
+
+        this.setCanPickUpLoot(true);
 
         // Safety net for entities that are created without finalizeSpawn ever running
         // (copies, /summon variants, ...). Real spawns re-roll this in finalizeSpawn.
@@ -69,6 +79,28 @@ public class CitizenEntity extends PathfinderMob {
         this.goalSelector.addGoal(1, new WaterAvoidingRandomStrollGoal(this, 0.6D));
         this.goalSelector.addGoal(2, new LookAtPlayerGoal(this, Player.class, 8.0F));
         this.goalSelector.addGoal(3, new RandomLookAroundGoal(this));
+    }
+
+    // ------------------------------------------------------------------
+    // Inventory
+    // ------------------------------------------------------------------
+
+    @Override
+    public SimpleContainer getInventory() {
+        return this.inventory;
+    }
+
+    /**
+     * Stores what the citizen walks into, the way a villager does.
+     *
+     * <p>Reaching for an item on purpose is a separate behaviour and is not here yet:
+     * {@code Mob.aiStep} only offers items the citizen is already standing next to.
+     * What ends up in the inventory stays there - moving it into the hand is for the
+     * work logic to decide later.
+     */
+    @Override
+    protected void pickUpItem(ItemEntity itemEntity) {
+        InventoryCarrier.pickUpItem(this, this, itemEntity);
     }
 
     // ------------------------------------------------------------------
@@ -104,11 +136,13 @@ public class CitizenEntity extends PathfinderMob {
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putString(TAG_GENDER, this.getGender().getSerializedName());
+        this.writeInventoryToTag(tag);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        this.readInventoryFromTag(tag);
         if (tag.contains(TAG_GENDER)) {
             String name = tag.getString(TAG_GENDER);
             for (CitizenGender gender : CitizenGender.values()) {
