@@ -8,7 +8,7 @@ import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.entity.layers.CustomHeadLayer;
 import net.minecraft.client.renderer.entity.layers.ElytraLayer;
 import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
@@ -22,8 +22,13 @@ import net.minecraft.resources.ResourceLocation;
  * depends on its gender, so both variants are baked up front and the active one
  * is swapped in per entity before rendering. The render layers read the model
  * back through {@link #getModel()}, so they follow the swap automatically.
+ *
+ * <p>Extends {@code MobRenderer} rather than {@code LivingEntityRenderer}: the latter
+ * shows a name tag for any entity in range, which is the behaviour players want and
+ * mobs do not. {@code MobRenderer} adds the check that limits name tags to mobs that
+ * were actually named, and brings leash rendering along with it.
  */
-public class CitizenRenderer extends LivingEntityRenderer<CitizenEntity, PlayerModel<CitizenEntity>> {
+public class CitizenRenderer extends MobRenderer<CitizenEntity, PlayerModel<CitizenEntity>> {
 
     /** The player model is authored slightly larger than one block wide; vanilla scales it down. */
     private static final float MODEL_SCALE = 0.9375F;

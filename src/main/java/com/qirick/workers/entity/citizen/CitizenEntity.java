@@ -17,12 +17,8 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
-import net.minecraft.world.entity.ai.goal.OpenDoorGoal;
-import net.minecraft.world.entity.ai.goal.PanicGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal;
-import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
-import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
@@ -60,28 +56,19 @@ public class CitizenEntity extends PathfinderMob {
                 .add(Attributes.FOLLOW_RANGE, 48.0D);
     }
 
+    /**
+     * Walking, wandering and idling only. Reactions to being hurt, to other mobs or to
+     * the world belong to later steps, once it is decided what a Citizen should do.
+     *
+     * <p>{@link FloatGoal} is here because without it the entity sinks and drowns rather
+     * than behaving like a normal mob in water.
+     */
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        this.goalSelector.addGoal(1, new PanicGoal(this, 0.9D));
-        this.goalSelector.addGoal(2, new OpenDoorGoal(this, false));
-        this.goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 0.6D));
-        this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
-    }
-
-    /**
-     * Citizens live in buildings, so they path through doors and open them on the way.
-     *
-     * <p>Called from the {@code Mob} constructor before {@link #registerGoals()}, which is
-     * what lets {@link OpenDoorGoal} accept this entity.
-     */
-    @Override
-    protected PathNavigation createNavigation(Level level) {
-        GroundPathNavigation navigation = new GroundPathNavigation(this, level);
-        navigation.setCanOpenDoors(true);
-        navigation.setCanPassDoors(true);
-        return navigation;
+        this.goalSelector.addGoal(1, new WaterAvoidingRandomStrollGoal(this, 0.6D));
+        this.goalSelector.addGoal(2, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        this.goalSelector.addGoal(3, new RandomLookAroundGoal(this));
     }
 
     // ------------------------------------------------------------------

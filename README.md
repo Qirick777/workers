@@ -11,8 +11,9 @@ adds the entity everything else will be built on: the **Citizen**.
   - Male citizens use the wide (Steve) player model and skin, female citizens the
     slim (Alex) one. Both textures are vanilla, so no skins ship with the mod yet.
   - Gender is rolled at spawn, synced to the client, and saved to NBT.
-  - Standard mob AI: swims, panics when hurt, opens doors, wanders, looks at
-    players and idles. Full ground pathfinding.
+  - Movement only: wanders, looks at nearby players, idles, and floats instead of
+    drowning. Full ground pathfinding. How a Citizen reacts to being hurt, to other
+    mobs or to the world is deliberately left for later.
   - Spawned with `workers:citizen_spawn_egg` (Spawn Eggs creative tab). No natural
     spawning yet.
 
