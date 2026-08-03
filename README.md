@@ -17,6 +17,8 @@ adds the entity everything else will be built on: the **Citizen**.
   - 8-slot inventory, the same size a villager carries. Items the Citizen walks over
     are picked up into it and persist across save/load. Walking to an item on purpose
     is a later step.
+  - Drops everything on death: the whole inventory, both hands and every armour piece,
+    undamaged, however the Citizen died.
   - Whatever is in the main hand renders in the right hand with the player carrying
     pose, so a pickaxe reads as a pickaxe. Nothing puts items into the hand yet; set
     one to see it:

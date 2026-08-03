@@ -7,8 +7,10 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.Pose;
@@ -47,12 +49,21 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
     /** Matches the player's eye height so the citizen looks at things from where its eyes are. */
     private static final float EYE_HEIGHT = 1.62F;
 
+    /**
+     * Any drop chance above 1.0 means "always", and vanilla reads it twice: it drops the
+     * item however the citizen died rather than only for player kills, and it hands the
+     * item over undamaged instead of rolling durability off it.
+     */
+    private static final float ALWAYS_DROP = 2.0F;
+
     private final SimpleContainer inventory = new SimpleContainer(INVENTORY_SIZE);
 
     public CitizenEntity(EntityType<? extends CitizenEntity> type, Level level) {
         super(type, level);
 
         this.setCanPickUpLoot(true);
+
+        this.alwaysDropEquipment();
 
         // Safety net for entities that are created without finalizeSpawn ever running
         // (copies, /summon variants, ...). Real spawns re-roll this in finalizeSpawn.
@@ -103,6 +114,31 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
         InventoryCarrier.pickUpItem(this, this, itemEntity);
     }
 
+    /**
+     * A citizen carries what it owns rather than wearing loot, so nothing it holds
+     * evaporates on death.
+     *
+     * <p>Vanilla persists drop chances per entity, so this is reapplied on load as well
+     * as set on creation - otherwise a citizen from an earlier save would keep the old
+     * chances and quietly swallow its armour.
+     */
+    private void alwaysDropEquipment() {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            this.setDropChance(slot, ALWAYS_DROP);
+        }
+    }
+
+    /**
+     * Everything the citizen was carrying is left behind: {@code super} empties the
+     * equipment slots, which always drop, and the stored inventory follows it onto
+     * the ground.
+     */
+    @Override
+    protected void dropCustomDeathLoot(DamageSource source, int looting, boolean recentlyHit) {
+        super.dropCustomDeathLoot(source, looting, recentlyHit);
+        this.getInventory().removeAllItems().forEach(this::spawnAtLocation);
+    }
+
     // ------------------------------------------------------------------
     // Gender
     // ------------------------------------------------------------------
@@ -142,6 +178,7 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        this.alwaysDropEquipment();
         this.readInventoryFromTag(tag);
         if (tag.contains(TAG_GENDER)) {
             String name = tag.getString(TAG_GENDER);
@@ -164,7 +201,7 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
     }
 
     @Override
-    protected SoundEvent getHurtSound(net.minecraft.world.damagesource.DamageSource source) {
+    protected SoundEvent getHurtSound(DamageSource source) {
         return SoundEvents.PLAYER_HURT;
     }
 
