@@ -48,13 +48,6 @@ public class CitizenEntity extends PathfinderMob {
     public CitizenEntity(EntityType<? extends CitizenEntity> type, Level level) {
         super(type, level);
 
-        // Citizens live in buildings, so they need to be able to use the doors.
-        this.setCanPickUpLoot(false);
-        if (this.getNavigation() instanceof GroundPathNavigation navigation) {
-            navigation.setCanOpenDoors(true);
-            navigation.setCanPassDoors(true);
-        }
-
         // Safety net for entities that are created without finalizeSpawn ever running
         // (copies, /summon variants, ...). Real spawns re-roll this in finalizeSpawn.
         this.setGender(CitizenGender.random(this.random));
@@ -77,6 +70,12 @@ public class CitizenEntity extends PathfinderMob {
         this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
     }
 
+    /**
+     * Citizens live in buildings, so they path through doors and open them on the way.
+     *
+     * <p>Called from the {@code Mob} constructor before {@link #registerGoals()}, which is
+     * what lets {@link OpenDoorGoal} accept this entity.
+     */
     @Override
     protected PathNavigation createNavigation(Level level) {
         GroundPathNavigation navigation = new GroundPathNavigation(this, level);
