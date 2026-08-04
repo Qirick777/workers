@@ -39,8 +39,15 @@ public class MinerGoal extends Goal {
     /** Added again for cutting a block with open sky above it. */
     private static final int S = 64;
 
-    /** How long a trail may get before the mob turns for home. */
-    private static final int BUDGET = 160;
+    /**
+     * How long a trail may get before the mob turns for home.
+     *
+     * <p>This one number sets the depth as well as the range, because the rules have no
+     * depth of their own - rule 4 only says "lower". With the safety factor it turns the
+     * mob round after about twenty-six net steps, which from a surface at sixty-four is
+     * iron and coal country and no deeper.
+     */
+    private static final int BUDGET = 40;
 
     /** Margin on the way home, so the trail is never walked to the last step. */
     private static final double SAFETY = 1.5D;
