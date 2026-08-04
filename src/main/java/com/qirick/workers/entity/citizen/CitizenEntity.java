@@ -143,13 +143,6 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
         this.returnPoint = pos == null ? null : pos.immutable();
     }
 
-    /** Told to knock off. The citizen keeps the trail it came in by and walks out. */
-    public void sendHome(String reason) {
-        if (this.minerGoal != null) {
-            this.minerGoal.sendHome(reason);
-        }
-    }
-
     public String mineStatus() {
         if (!this.mining) {
             return "idle";
