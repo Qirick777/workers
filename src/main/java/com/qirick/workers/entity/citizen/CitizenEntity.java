@@ -56,7 +56,22 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
      */
     private static final float ALWAYS_DROP = 2.0F;
 
+    private static final String TAG_MINING = "Mining";
+    private static final String TAG_DEPTH = "MineDepth";
+    private static final String TAG_HOME = "ReturnPoint";
+
+    /** Where a shift heads when no depth is given: iron, coal and copper all reach here. */
+    public static final int DEFAULT_DEPTH = 40;
+
     private final SimpleContainer inventory = new SimpleContainer(INVENTORY_SIZE);
+
+    private boolean mining;
+    private int mineDepth = DEFAULT_DEPTH;
+    @Nullable
+    private net.minecraft.core.BlockPos returnPoint;
+
+    @Nullable
+    private com.qirick.workers.entity.citizen.ai.MinerGoal minerGoal;
 
     public CitizenEntity(EntityType<? extends CitizenEntity> type, Level level) {
         super(type, level);
@@ -87,9 +102,63 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        this.goalSelector.addGoal(1, new WaterAvoidingRandomStrollGoal(this, 0.6D));
-        this.goalSelector.addGoal(2, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        this.goalSelector.addGoal(3, new RandomLookAroundGoal(this));
+        this.minerGoal = new com.qirick.workers.entity.citizen.ai.MinerGoal(this);
+        this.goalSelector.addGoal(1, this.minerGoal);
+        this.goalSelector.addGoal(2, new WaterAvoidingRandomStrollGoal(this, 0.6D) {
+            @Override
+            public boolean canUse() {
+                return !CitizenEntity.this.isMining() && super.canUse();
+            }
+        });
+        this.goalSelector.addGoal(3, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        this.goalSelector.addGoal(4, new RandomLookAroundGoal(this));
+    }
+
+    // ------------------------------------------------------------------
+    // Mining
+    // ------------------------------------------------------------------
+
+    public boolean isMining() {
+        return this.mining;
+    }
+
+    public void setMining(boolean mining) {
+        this.mining = mining;
+    }
+
+    public int getMineDepth() {
+        return this.mineDepth;
+    }
+
+    public void setMineDepth(int depth) {
+        this.mineDepth = depth;
+    }
+
+    @Nullable
+    public net.minecraft.core.BlockPos getReturnPoint() {
+        return this.returnPoint;
+    }
+
+    public void setReturnPoint(@Nullable net.minecraft.core.BlockPos pos) {
+        this.returnPoint = pos == null ? null : pos.immutable();
+    }
+
+    /** Told to knock off. The citizen keeps the trail it came in by and walks out. */
+    public void sendHome(String reason) {
+        if (this.minerGoal != null) {
+            this.minerGoal.sendHome(reason);
+        }
+    }
+
+    public String mineStatus() {
+        if (!this.mining) {
+            return "idle";
+        }
+        return this.minerGoal == null ? "mining" : this.minerGoal.describe();
+    }
+
+    public String mineName() {
+        return "Citizen#" + this.getId();
     }
 
     // ------------------------------------------------------------------
@@ -172,12 +241,26 @@ public class CitizenEntity extends PathfinderMob implements InventoryCarrier {
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
         tag.putString(TAG_GENDER, this.getGender().getSerializedName());
+        tag.putBoolean(TAG_MINING, this.mining);
+        tag.putInt(TAG_DEPTH, this.mineDepth);
+        if (this.returnPoint != null) {
+            tag.putIntArray(TAG_HOME, new int[]{
+                    this.returnPoint.getX(), this.returnPoint.getY(), this.returnPoint.getZ()});
+        }
         this.writeInventoryToTag(tag);
     }
 
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        this.mining = tag.getBoolean(TAG_MINING);
+        this.mineDepth = tag.contains(TAG_DEPTH) ? tag.getInt(TAG_DEPTH) : DEFAULT_DEPTH;
+        if (tag.contains(TAG_HOME)) {
+            int[] h = tag.getIntArray(TAG_HOME);
+            if (h.length == 3) {
+                this.returnPoint = new net.minecraft.core.BlockPos(h[0], h[1], h[2]);
+            }
+        }
         this.alwaysDropEquipment();
         this.readInventoryFromTag(tag);
         if (tag.contains(TAG_GENDER)) {
