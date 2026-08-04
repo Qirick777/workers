@@ -25,7 +25,8 @@ import java.util.PriorityQueue;
 public final class Local {
 
     /** What the sweep returns: how much each cell cost, and which cell it came from. */
-    public record Field(Map<BlockPos, Integer> cost, Map<BlockPos, BlockPos> from) {
+    public record Field(Map<BlockPos, Integer> cost, Map<BlockPos, BlockPos> from,
+                        BlockPos found) {
     }
 
     private Local() {
@@ -38,7 +39,8 @@ public final class Local {
      * @param canPlace whether liquid faces can be walled off rather than avoided
      */
     public static Field sweep(LevelReader level, BlockPos start, int dig, int sky,
-                              int radius, int budget, boolean canPlace) {
+                              int radius, int budget, boolean canPlace,
+                              java.util.function.Predicate<BlockPos> reached) {
         Map<BlockPos, Integer> cost = new HashMap<>();
         Map<BlockPos, BlockPos> from = new HashMap<>();
         PriorityQueue<BlockPos> queue =
@@ -51,6 +53,17 @@ public final class Local {
         while (!queue.isEmpty() && visited++ < budget) {
             BlockPos cell = queue.poll();
             int here = cost.getOrDefault(cell, Integer.MAX_VALUE);
+
+            // Cheapest-first, so the first cell popped that answers the goal is the end of
+            // the cheapest whole route to it. Choosing the cheapest single STEP instead is
+            // what produced level tunnels and never a stair: going down costs three blocks
+            // of cutting and going along costs two, so a step-at-a-time chooser goes along
+            // for ever. Priced over the whole route, n cells along and then down is
+            // 2Kn + 3K, which is dearer than 3K for every n, and the stair falls out
+            // without anything in the price knowing which way is down.
+            if (!cell.equals(start) && reached.test(cell) && Terrain.walkable(level, cell)) {
+                return new Field(cost, from, cell);
+            }
 
             for (Direction side : Direction.Plane.HORIZONTAL) {
                 for (int dy = 1; dy >= -1; dy--) {
@@ -76,7 +89,7 @@ public final class Local {
                 }
             }
         }
-        return new Field(cost, from);
+        return new Field(cost, from, null);
     }
 
     /**

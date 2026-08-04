@@ -126,7 +126,6 @@ public class MinerGoal extends Goal {
         }
 
         boolean goingHome = this.overBudget();
-        Local.Field field = Local.sweep(level, here, K, S, RADIUS, SWEEP, true);
 
         // Rule 12: while the goal is home the trail is walked backwards, and only a blocked
         // cell sends it back through the ordinary step rules.
@@ -147,12 +146,13 @@ public class MinerGoal extends Goal {
             }
         }
 
-        BlockPos target = this.pick(level, field, here, goingHome);
-        if (target == null) {
+        java.util.function.Predicate<BlockPos> reached = this.goal(level, here, goingHome);
+        Local.Field field = Local.sweep(level, here, K, S, RADIUS, SWEEP, true, reached);
+        if (field.found() == null) {
             this.drift(level, here);
             return;
         }
-        BlockPos step = Local.firstStep(field, here, target);
+        BlockPos step = Local.firstStep(field, here, field.found());
         if (step == null) {
             this.drift(level, here);
             return;
@@ -161,55 +161,75 @@ public class MinerGoal extends Goal {
     }
 
     /**
-     * Rules 1 to 4: the first thing that applies is the goal, and the cell chosen is the one
-     * the sweep reached that serves it best.
+     * Rules 1 to 4: the first that applies says what counts as having arrived. Nothing here
+     * scores or steers; it only states the condition, and the sweep finds the cheapest way
+     * to meet it.
+     */
+    private java.util.function.Predicate<BlockPos> goal(ServerLevel level, BlockPos here,
+                                                        boolean goingHome) {
+        if (goingHome) {
+            BlockPos back = this.stack.isEmpty() ? here : this.stack.get(this.stack.size() - 1);
+            this.said = "home";
+            return cell -> cell.equals(back);
+        }
+        BlockPos ore = this.sighted(level, here, true);
+        if (ore != null) {
+            this.said = "ore";
+            BlockPos seen = ore;
+            return cell -> cell.distSqr(seen) <= 2.5D;
+        }
+        BlockPos marker = this.sighted(level, here, false);
+        if (marker != null) {
+            this.said = "marker";
+            BlockPos under = marker.below();
+            return cell -> cell.equals(under);
+        }
+        this.said = "down";
+        int from = here.getY();
+        return cell -> cell.getY() < from;
+    }
+
+    /**
+     * What the mob can see: blocks reached by a straight line through open air, stopping at
+     * the first solid face.
+     *
+     * <p>Sight is deliberately not the sweep's reach. In stone a mob sees the faces of its
+     * own corridor and no further, which is right - ore is visible where it is exposed and
+     * nowhere else, and it is that narrowness that makes a sighted vein worth turning aside
+     * for. In a cavern the same rays run until they hit something, and the mob sees far
+     * without a line of code about caverns.
      */
     @Nullable
-    private BlockPos pick(ServerLevel level, Local.Field field, BlockPos here, boolean goingHome) {
-        BlockPos best = null;
-        double bestScore = Double.MAX_VALUE;
-
-        BlockPos home = goingHome && !this.stack.isEmpty() ? this.stack.get(0) : null;
-        BlockPos ore = null;
-        BlockPos marker = null;
-
-        // What the mob can see is what the sweep touched: cheap to reach means visible,
-        // which is why a cavern opens the eyes and solid rock closes them.
-        for (BlockPos seen : field.cost().keySet()) {
-            for (Direction face : Direction.values()) {
-                BlockPos around = seen.relative(face);
-                if (ore == null && Terrain.isOre(level, around)) {
-                    ore = around;
-                }
-                if (marker == null && Terrain.isMarker(level, around)) {
-                    marker = around;
+    private BlockPos sighted(ServerLevel level, BlockPos here, boolean ore) {
+        BlockPos eye = here.above();
+        for (int dx = -RADIUS; dx <= RADIUS; dx++) {
+            for (int dy = -RADIUS; dy <= RADIUS; dy++) {
+                for (int dz = -RADIUS; dz <= RADIUS; dz++) {
+                    BlockPos aim = eye.offset(dx, dy, dz);
+                    boolean want = ore ? Terrain.isOre(level, aim) : Terrain.isMarker(level, aim);
+                    if (want && this.clearLine(level, eye, aim)) {
+                        return aim;
+                    }
                 }
             }
         }
+        return null;
+    }
 
-        for (Map.Entry<BlockPos, Integer> entry : field.cost().entrySet()) {
-            BlockPos cell = entry.getKey();
-            if (cell.equals(here) || !Terrain.walkable(level, cell)) {
-                continue;
-            }
-            double score;
-            if (home != null) {
-                score = cell.distSqr(home);
-            } else if (ore != null) {
-                score = cell.distSqr(ore);
-            } else if (marker != null) {
-                score = cell.distSqr(marker.below());
-            } else {
-                score = cell.getY();
-            }
-            score = score * 1000.0D + entry.getValue();
-            if (score < bestScore) {
-                bestScore = score;
-                best = cell;
+    /** Whether nothing solid stands between here and there, the target itself excepted. */
+    private boolean clearLine(ServerLevel level, BlockPos eye, BlockPos aim) {
+        int steps = Math.max(Math.max(Math.abs(aim.getX() - eye.getX()),
+                Math.abs(aim.getY() - eye.getY())), Math.abs(aim.getZ() - eye.getZ()));
+        for (int i = 1; i < steps; i++) {
+            BlockPos between = new BlockPos(
+                    eye.getX() + (aim.getX() - eye.getX()) * i / steps,
+                    eye.getY() + (aim.getY() - eye.getY()) * i / steps,
+                    eye.getZ() + (aim.getZ() - eye.getZ()) * i / steps);
+            if (!Terrain.isEmpty(level, between)) {
+                return false;
             }
         }
-        this.said = home != null ? "home" : ore != null ? "ore" : marker != null ? "marker" : "down";
-        return best;
+        return true;
     }
 
     /** Rule 8's fallback, and the only use of the last direction that worked. */

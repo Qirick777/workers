@@ -22,12 +22,18 @@ public final class Terrain {
     private static final int VOID_DEPTH = 3;
 
     /** The block a mob leaves behind to say where the way down is. */
-    public static final net.minecraft.world.level.block.Block MARKER = Blocks.TORCH;
+    public static final net.minecraft.world.level.block.Block MARKER = Blocks.LODESTONE;
 
     private Terrain() {
     }
 
-    /** Room to stand: two empty cells here, on something solid. */
+    /**
+     * Room to stand: two empty cells here, AND something solid underfoot.
+     *
+     * <p>The footing clause is not decoration. Rule 6 refuses any cut whose result is not
+     * walkable, so a mob breaking through the roof of a cavern finds the cell below it has
+     * no floor and drops the candidate - it never opens a hole it would fall through.
+     */
     public static boolean walkable(LevelReader level, BlockPos cell) {
         return isSolid(level, cell.below()) && isEmpty(level, cell) && isEmpty(level, cell.above());
     }
