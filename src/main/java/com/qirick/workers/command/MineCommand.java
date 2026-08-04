@@ -108,10 +108,10 @@ public final class MineCommand {
             BlockPos home = citizen.getReturnPoint() == null
                     ? BlockPos.containing(source.getPosition()) : citizen.getReturnPoint();
             MineShape shape = new MineShape(home, citizen.getMineDepth(), citizen.getId());
-            List<BlockPos> stair = shape.stair();
+            List<BlockPos> stair = shape.stair(source.getLevel());
             BlockPos foot = stair.isEmpty() ? home : stair.get(stair.size() - 1);
             source.sendSuccess(() -> Component.literal(
-                    citizen.mineName() + " mouth=" + shape.mouth().toShortString()
+                    citizen.mineName() + " mouth=" + shape.mouth(source.getLevel()).toShortString()
                             + " stair=" + stair.size() + " steps to " + foot.toShortString()
                             + " drift=" + shape.driftFacing()), false);
         }

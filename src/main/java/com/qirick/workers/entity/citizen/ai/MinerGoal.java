@@ -57,7 +57,11 @@ public class MinerGoal extends Goal {
     /** Close enough to the return point to be home. */
     private static final double HOME_RANGE_SQ = 6.0D;
 
+    /** How far a citizen can work: arm's length, as a player's is. */
+    private static final double REACH = 4.5D;
+
     private enum State {
+        APPROACH,
         STAIR,
         DRIFT,
         RETURN
@@ -123,9 +127,8 @@ public class MinerGoal extends Goal {
             return;
         }
         this.shape = new MineShape(home, this.citizen.getMineDepth(), this.citizen.getId());
-        this.state = State.STAIR;
+        this.state = State.APPROACH;
         this.ahead.clear();
-        this.ahead.addAll(this.shape.stair());
         this.trail.clear();
         this.foot = null;
         this.stepping = null;
@@ -168,6 +171,7 @@ public class MinerGoal extends Goal {
             return;
         }
         switch (this.state) {
+            case APPROACH -> this.approach(level);
             case STAIR, DRIFT -> this.advance(level);
             case RETURN -> this.retreat(level);
         }
@@ -176,6 +180,34 @@ public class MinerGoal extends Goal {
     // ------------------------------------------------------------------
     // Going in
     // ------------------------------------------------------------------
+
+    /**
+     * Walk to the mouth before touching anything.
+     *
+     * <p>Nothing else here uses pathfinding, and this is why it must: until the citizen is
+     * standing at the mine it has no corridor to walk along, only open country. Without
+     * this the citizen worked the mouth from wherever it happened to be - laying blocks it
+     * could not reach, into air it could not see - and the crew built a cobblestone cross
+     * hanging over the meadow and jumped at it.
+     */
+    private void approach(ServerLevel level) {
+        BlockPos mouth = this.shape.mouth(level);
+        if (this.citizen.blockPosition().closerThan(mouth, REACH)) {
+            this.citizen.getNavigation().stop();
+            this.state = State.STAIR;
+            this.ahead.addAll(this.shape.stair(level));
+            this.note("at the mouth " + mouth.toShortString());
+            return;
+        }
+        if (++this.stepTicks > STEP_TIMEOUT * 8) {
+            this.sendHome("cannot reach the mouth");
+            return;
+        }
+        if (this.citizen.getNavigation().isDone()) {
+            this.citizen.getNavigation().moveTo(
+                    mouth.getX() + 0.5D, mouth.getY(), mouth.getZ() + 0.5D, 1.0D);
+        }
+    }
 
     private void advance(ServerLevel level) {
         // An ore spotted in the wall is taken before moving on, from where the citizen
@@ -266,15 +298,17 @@ public class MinerGoal extends Goal {
             return this.dig(level, part, MineLog.Act.DIG_PLAN, "corridor");
         }
 
-        // Then every hole around it. A cave beside the corridor is a wall to close, not a
-        // place to go: this is what makes falling out of the mine impossible.
+        // Then anything that would run in. Only fluids: air is not a leak, and treating it
+        // as one is what had the crew bricking up the open sky around itself. What keeps a
+        // citizen from falling out of the mine is that it never walks anywhere but the next
+        // cell of its own corridor - not a wall around the corridor.
         for (BlockPos part : MineShape.body(cell)) {
             for (Direction direction : Direction.values()) {
                 BlockPos side = part.relative(direction);
-                if (this.isCorridor(side) || !MineRules.needsSealing(level, side)) {
+                if (this.isCorridor(side) || level.getFluidState(side).isEmpty()) {
                     continue;
                 }
-                this.seal(level, side, "wall");
+                this.seal(level, side, "fluid");
                 return false;
             }
         }
@@ -373,6 +407,10 @@ public class MinerGoal extends Goal {
     // ------------------------------------------------------------------
 
     private boolean dig(ServerLevel level, BlockPos target, MineLog.Act act, String reason) {
+        if (!this.citizen.blockPosition().closerThan(target, REACH)) {
+            this.sendHome("out of reach of " + target.toShortString());
+            return false;
+        }
         if (!target.equals(this.breaking)) {
             this.breaking = target.immutable();
             this.breakTicks = 0;
@@ -398,6 +436,10 @@ public class MinerGoal extends Goal {
     }
 
     private void seal(ServerLevel level, BlockPos target, String reason) {
+        if (!this.citizen.blockPosition().closerThan(target, REACH)) {
+            this.sendHome("out of reach of " + target.toShortString());
+            return;
+        }
         // Never into a body: a block set where somebody stands is how one citizen
         // suffocated another in the previous attempt.
         if (!level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class,

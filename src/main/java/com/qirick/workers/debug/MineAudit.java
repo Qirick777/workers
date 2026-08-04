@@ -45,9 +45,9 @@ public final class MineAudit {
         Set<BlockPos> permitted = new HashSet<>();
         for (int id : ids) {
             MineShape shape = new MineShape(home, depth, id);
-            List<BlockPos> stair = shape.stair();
+            List<BlockPos> stair = shape.stair(level);
             BlockPos foot = stair.isEmpty() ? home : stair.get(stair.size() - 1);
-            permitted.addAll(shape.permitted(foot, length));
+            permitted.addAll(shape.permitted(level, foot, length));
         }
 
         int planned = 0;

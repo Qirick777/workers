@@ -55,9 +55,24 @@ public final class MineShape {
         return this.driftFacing;
     }
 
-    /** Where the stair breaks ground: one cell from the return point, and always the same one. */
-    public BlockPos mouth() {
-        return this.home.offset(1, 0, 0);
+    /**
+     * Where the stair breaks ground: one cell from the return point, and always the same one.
+     *
+     * <p>The return point is a player's feet, which is a cell of AIR standing on the ground -
+     * or worse, a cell of air with nothing under it at all if the order was given from a
+     * ledge. Taking it literally had citizens laying a floor in mid-air and then walling in
+     * the sky around it, a cobblestone cross hanging over their heads which they jumped at.
+     * The mouth is snapped down to whatever the ground actually is.
+     */
+    public BlockPos mouth(net.minecraft.world.level.LevelReader level) {
+        BlockPos column = this.home.offset(1, 0, 0);
+        for (int drop = 0; drop <= 32; drop++) {
+            BlockPos cell = column.below(drop);
+            if (MineRules.isFloor(level, cell.below()) && MineRules.isOpen(level, cell)) {
+                return cell;
+            }
+        }
+        return column;
     }
 
     /**
@@ -66,8 +81,8 @@ public final class MineShape {
      * <p>Step k is the k-th cell of the spiral, k blocks below the mouth. Consecutive cells
      * are horizontal neighbours one block apart in height, which is a step, never a drop.
      */
-    public List<BlockPos> stair() {
-        BlockPos mouth = this.mouth();
+    public List<BlockPos> stair(net.minecraft.world.level.LevelReader level) {
+        BlockPos mouth = this.mouth(level);
         List<BlockPos> cells = new ArrayList<>();
         for (int k = 0; k < MAX_STAIR; k++) {
             int[] corner = SPIRAL[k % SPIRAL.length];
@@ -98,9 +113,10 @@ public final class MineShape {
      * that is not in here and not an ore touching it is a hole the citizen had no business
      * making.
      */
-    public Set<BlockPos> permitted(BlockPos foot, int driftLength) {
+    public Set<BlockPos> permitted(net.minecraft.world.level.LevelReader level,
+                                   BlockPos foot, int driftLength) {
         Set<BlockPos> cells = new LinkedHashSet<>();
-        for (BlockPos stand : this.stair()) {
+        for (BlockPos stand : this.stair(level)) {
             addBody(cells, stand);
         }
         if (foot != null) {
